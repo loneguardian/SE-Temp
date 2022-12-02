@@ -427,6 +427,7 @@ function SpaceshipClone.clone(spaceship, clone_from, clone_to, clone_delta, post
   local change_tiles_from = {}
   local change_tiles_to = {}
   local area_table = {left_top = {}, right_bottom = {}}
+  local delayed_player_teleport = {}
   for _, clone_position in pairs(clone_positions) do
     local x = clone_position.x
     local y = clone_position.y
@@ -464,8 +465,12 @@ function SpaceshipClone.clone(spaceship, clone_from, clone_to, clone_delta, post
           }
           local clone = clone_to.find_entity(entity_name, position)
           if clone and entity.player then
-            entity.player.teleport(clone.position, clone_to)
-            util.safe_destroy(clone)
+            delayed_player_teleport[#delayed_player_teleport+1] = {
+              player = entity.player,
+              clone = clone,
+              position = clone.position,
+              surface = clone_to
+            }
           else
             for _, playerdata in pairs(global.playerdata) do
               if playerdata.character == entity then
@@ -498,6 +503,16 @@ function SpaceshipClone.clone(spaceship, clone_from, clone_to, clone_delta, post
       end
     end
   end
+
+  -- delayed player teleport - make sure players teleport last - after source robots are destroyed
+  if #delayed_player_teleport > 0 then
+    for i = #delayed_player_teleport, 1, -1 do
+      delayed_player_teleport[i].player.teleport(delayed_player_teleport[i].position, delayed_player_teleport[i].surface)
+      util.safe_destroy(delayed_player_teleport[i].clone)
+      delayed_player_teleport[i] = nil
+    end
+  end
+
   clone_from.set_tiles(change_tiles_from, true)
   clone_to.set_tiles(change_tiles_to, true)
 
